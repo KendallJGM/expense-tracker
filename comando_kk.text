@@ -1,0 +1,1 @@
+python -m PyInstaller --onefile --name FinTrack --icon=logo.ico app.py
