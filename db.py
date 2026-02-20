@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import sqlite3
 import hashlib
+import re
 from dataclasses import dataclass
 from datetime import date
 from typing import Optional, Dict, Any, List
@@ -23,6 +24,23 @@ class User:
     password_hash: str
     role: str  # 'admin' or 'user'
     must_change_password: bool
+    created_at: str
+
+
+@dataclass
+class IngestedTransaction:
+    id: int
+    user_id: int
+    tx_date: str
+    tx_time: str
+    amount: int
+    merchant: str
+    currency: str
+    from_wallet: bool
+    from_email: bool
+    wallet_payload: Optional[str]
+    email_payload: Optional[str]
+    dedupe_key: str
     created_at: str
 
 
@@ -114,6 +132,26 @@ def init_schema(con: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_tx_ym ON transactions(year, month, user_id);
         CREATE INDEX IF NOT EXISTS idx_tx_date ON transactions(tx_date);
         CREATE INDEX IF NOT EXISTS idx_months_user ON months(user_id);
+
+        CREATE TABLE IF NOT EXISTS ingested_transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            tx_date TEXT NOT NULL,              -- YYYY-MM-DD
+            tx_time TEXT NOT NULL,              -- HH:MM:SS
+            amount INTEGER NOT NULL,            -- CRC
+            merchant TEXT NOT NULL,
+            currency TEXT NOT NULL DEFAULT 'CRC',
+            from_wallet INTEGER NOT NULL DEFAULT 0,
+            from_email INTEGER NOT NULL DEFAULT 0,
+            wallet_payload TEXT,
+            email_payload TEXT,
+            dedupe_key TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, dedupe_key),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_ingested_user_date ON ingested_transactions(user_id, tx_date);
         """
     )
     con.commit()
@@ -453,3 +491,107 @@ def month_totals(con: sqlite3.Connection, year: int, month: int, user_id: int) -
         "fixed_rows": fixed,
         "tx_rows": tx,
     }
+
+
+def build_dedupe_key(tx_date: str, amount: int, merchant: str) -> str:
+    normalized_merchant = re.sub(r"\s+", " ", merchant.strip().lower())
+    return f"{tx_date}|{amount}|{normalized_merchant}"
+
+
+def upsert_ingested_transaction(
+    con: sqlite3.Connection,
+    *,
+    user_id: int,
+    tx_date: str,
+    tx_time: str,
+    amount: int,
+    merchant: str,
+    currency: str = "CRC",
+    source: str,
+    payload: str,
+) -> IngestedTransaction:
+    """
+    Inserta transacciones detectadas desde wallet/email evitando duplicados
+    entre fuentes para el mismo usuario.
+    """
+    dedupe_key = build_dedupe_key(tx_date, amount, merchant)
+    existing = con.execute(
+        "SELECT * FROM ingested_transactions WHERE user_id=? AND dedupe_key=?",
+        (user_id, dedupe_key),
+    ).fetchone()
+
+    is_wallet = 1 if source == "wallet" else 0
+    is_email = 1 if source == "email" else 0
+
+    if existing:
+        updated_wallet = max(existing["from_wallet"], is_wallet)
+        updated_email = max(existing["from_email"], is_email)
+        wallet_payload = payload if source == "wallet" else existing["wallet_payload"]
+        email_payload = payload if source == "email" else existing["email_payload"]
+
+        con.execute(
+            """
+            UPDATE ingested_transactions
+            SET from_wallet=?, from_email=?, wallet_payload=?, email_payload=?
+            WHERE id=?
+            """,
+            (updated_wallet, updated_email, wallet_payload, email_payload, existing["id"]),
+        )
+        con.commit()
+        row = con.execute("SELECT * FROM ingested_transactions WHERE id=?", (existing["id"],)).fetchone()
+    else:
+        con.execute(
+            """
+            INSERT INTO ingested_transactions(
+                user_id, tx_date, tx_time, amount, merchant, currency,
+                from_wallet, from_email, wallet_payload, email_payload, dedupe_key
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                user_id,
+                tx_date,
+                tx_time,
+                amount,
+                merchant,
+                currency,
+                is_wallet,
+                is_email,
+                payload if source == "wallet" else None,
+                payload if source == "email" else None,
+                dedupe_key,
+            ),
+        )
+        con.commit()
+        row = con.execute(
+            "SELECT * FROM ingested_transactions WHERE user_id=? AND dedupe_key=?",
+            (user_id, dedupe_key),
+        ).fetchone()
+
+    return IngestedTransaction(
+        id=row["id"],
+        user_id=row["user_id"],
+        tx_date=row["tx_date"],
+        tx_time=row["tx_time"],
+        amount=row["amount"],
+        merchant=row["merchant"],
+        currency=row["currency"],
+        from_wallet=bool(row["from_wallet"]),
+        from_email=bool(row["from_email"]),
+        wallet_payload=row["wallet_payload"],
+        email_payload=row["email_payload"],
+        dedupe_key=row["dedupe_key"],
+        created_at=row["created_at"],
+    )
+
+
+def list_ingested_transactions_by_day(con: sqlite3.Connection, user_id: int, tx_date: str):
+    return con.execute(
+        """
+        SELECT *
+        FROM ingested_transactions
+        WHERE user_id=? AND tx_date=?
+        ORDER BY tx_time ASC, id ASC
+        """,
+        (user_id, tx_date),
+    ).fetchall()
