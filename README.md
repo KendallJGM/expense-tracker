@@ -2,41 +2,52 @@
 
 Base local para finanzas con soporte multiusuario.
 
-## Nuevo: ingestión automática de transacciones
+## Ingestión automática (Wallet + BCR)
 
-Se agregó un flujo base para guardar transacciones detectadas desde:
+Se agregó un flujo para guardar transacciones detectadas desde:
 
 - Notificaciones de Wallet/Google Pay (`source=wallet`)
-- Correos de BCR sobre transferencias/compras (`source=email`)
+- Correos BCR (vía texto de notificación de Gmail) (`source=email`)
 
 ### Qué hace
 
-- Parsea monto y comercio desde texto plano.
-- Inserta transacciones en `ingested_transactions`.
-- Evita duplicados entre wallet y correo por usuario con una llave de deduplicación (`fecha+monto+comercio`).
-- Si llega por ambos canales, unifica en un solo registro y marca ambas fuentes.
-- Permite consultar por día para renderizar una vista diaria en web.
+- Parsea monto y comercio desde texto.
+- Inserta en `ingested_transactions`.
+- Evita duplicados por usuario (`fecha+monto+comercio`).
+- Si llega por wallet y correo, unifica en un solo registro.
+- Permite consultar por día para la vista web de transacciones.
 
-### APIs internas agregadas
+## API móvil real para el APK
 
-- `db.upsert_ingested_transaction(...)`
-- `db.list_ingested_transactions_by_day(...)`
-- `ingestion.ingest_text_event(...)`
+Ahora el repo incluye backend HTTP para el APK:
 
-### Pruebas
+- `POST /api/mobile/login`
+- `POST /api/mobile/ingest`
+- `GET /api/mobile/transactions?date=YYYY-MM-DD`
+- `GET /api/mobile/health`
+
+Archivo principal:
+
+- `mobile_api.py`
+- runner: `run_mobile_api.py`
+
+### Ejecutar API
 
 ```bash
-python -m unittest test_ingestion.py
+python run_mobile_api.py
 ```
 
-## Siguiente paso recomendado para APK Android
+Servidor en `http://0.0.0.0:8000`.
 
-Este repo no contiene app Android todavía. Para Galaxy S25 Ultra, el camino recomendado es:
+> Para producción cambia `MOBILE_API_SECRET` en variables de entorno.
 
-1. Crear app nativa Android (Kotlin) con:
-   - `NotificationListenerService` (leer notificaciones de Wallet)
-   - integración con Gmail API o reenvío controlado de correos BCR
-2. Login una sola vez en APK y guardar token seguro.
-3. Enviar eventos parseados a un endpoint backend ligado al usuario autenticado.
-4. En la web, mostrar pestaña **Transacciones** agrupada por día usando `list_ingested_transactions_by_day`.
+## APK Android
 
+Se creó el proyecto Android en `APL/` con:
+
+- Login una sola vez.
+- `NotificationListenerService` activo para Wallet + Gmail/BCR.
+- Deduplicación local previa al envío.
+- Envío autenticado al backend.
+
+Ver detalle en `APL/README.md`.
