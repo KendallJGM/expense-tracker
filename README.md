@@ -19,19 +19,12 @@ Se agregó un flujo para guardar transacciones detectadas desde:
 
 ## API móvil real para el APK
 
-Ahora el repo incluye backend HTTP para el APK:
-
 - `POST /api/mobile/login`
 - `POST /api/mobile/ingest`
 - `GET /api/mobile/transactions?date=YYYY-MM-DD`
 - `GET /api/mobile/health`
 
-Archivo principal:
-
-- `mobile_api.py`
-- runner: `run_mobile_api.py`
-
-### Ejecutar API
+Runner:
 
 ```bash
 python run_mobile_api.py
