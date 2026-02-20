@@ -2,15 +2,6 @@
 
 Base local para finanzas con soporte multiusuario.
 
-## Estructura actual del repo
-
-Para evitar conflictos entre web y APK, el repo se organizó así:
-
-- `Main_web/`: código web/backend en Python (fuente principal activa)
-- `Main_apk/`: proyecto Android APK
-
-> Compatibilidad: también se mantienen archivos Python clave en la raíz (`db.py`, `app.py`, `mobile_api.py`, etc.) para facilitar merges con ramas anteriores y evitar conflictos de PR.
-
 ## Ingestión automática (Wallet + BCR)
 
 Se agregó un flujo para guardar transacciones detectadas desde:
@@ -39,33 +30,17 @@ Runner:
 python run_mobile_api.py
 ```
 
-## Comandos rápidos (PowerShell)
+Servidor en `http://0.0.0.0:8000`.
 
-### App principal web
+> Para producción cambia `MOBILE_API_SECRET` en variables de entorno.
 
-```powershell
-cd Main_web
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-python app.py
-```
+## APK Android
 
-### Backend móvil para APK
+Se creó el proyecto Android en `APL/` con:
 
-```powershell
-cd Main_web
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-python run_mobile_api.py
-```
+- Login una sola vez.
+- `NotificationListenerService` activo para Wallet + Gmail/BCR.
+- Deduplicación local previa al envío.
+- Envío autenticado al backend.
 
-### Compilar APK
-
-```powershell
-cd Main_apk\APL
-.\gradlew.bat assembleDebug
-```
+Ver detalle en `APL/README.md`.
