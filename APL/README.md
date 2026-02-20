@@ -30,12 +30,6 @@ Levantar backend:
 python run_mobile_api.py
 ```
 
-## Versión de esta rama
-
-- Rama: `main-apk`
-- `versionCode = 2`
-- `versionName = "1.0.0-main-apk"`
-
 ## Build del APK
 
 Desde Android Studio (recomendado):
