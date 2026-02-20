@@ -51,27 +51,3 @@ Se creó el proyecto Android en `APL/` con:
 - Envío autenticado al backend.
 
 Ver detalle en `APL/README.md`.
-
-## Ramas y clonado por rama
-
-Ramas creadas en este repo local:
-
-- `main`
-- `main_apk`
-- `work`
-
-Comandos para clonar una rama específica:
-
-```bash
-git clone --branch main <URL_DEL_REPO>
-git clone --branch main_apk <URL_DEL_REPO>
-git clone --branch work <URL_DEL_REPO>
-```
-
-Si en tu remoto solo aparece una rama, sube las faltantes:
-
-```bash
-git push -u origin main
-git push -u origin main_apk
-git push -u origin work
-```
